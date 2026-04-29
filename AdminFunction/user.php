@@ -2,14 +2,16 @@
 session_start();
 include "../db.php";
 
-// Admin Access Check
-if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'admin') {
-    header("Location: login.php");
+// 1. ADMIN ACCESS CHECK
+// Note: Role check is case-sensitive 'Admin' based on your system logic
+if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'Admin') {
+    header("Location: ../login.php");
     exit;
 }
 
-// Fetch users - Now including 'points'
-$query = "SELECT id, name, lname, email, role, status, points FROM user ORDER BY role ASC";
+// 2. FETCH USERS
+// Updated to use first_name and last_name as per your database schema
+$query = "SELECT user_id, first_name, last_name, email, role, status, points FROM user ORDER BY role ASC";
 $result = $conn->query($query);
 ?>
 <!DOCTYPE html>
@@ -52,7 +54,7 @@ $result = $conn->query($query);
             min-height: 100vh;
         }
 
-        /* --- UNIFIED SIDEBAR --- */
+        /* --- SIDEBAR --- */
         .sidebar {
             width: 280px;
             background: var(--sidebar-bg);
@@ -101,10 +103,6 @@ $result = $conn->query($query);
         .nav-links a.active {
             background: rgba(255, 46, 46, 0.1);
             color: var(--crimson);
-        }
-
-        .nav-links a.active {
-            border-left: 3px solid var(--crimson);
         }
 
         .logout-link {
@@ -166,11 +164,6 @@ $result = $conn->query($query);
             vertical-align: middle;
         }
 
-        tr:hover td {
-            background: rgba(255, 255, 255, 0.01);
-        }
-
-        /* --- COMPONENTS --- */
         .user-cell {
             display: flex;
             align-items: center;
@@ -189,21 +182,6 @@ $result = $conn->query($query);
             font-family: 'Outfit';
             font-weight: 700;
             color: var(--crimson);
-            font-size: 0.9rem;
-        }
-
-        .user-details strong {
-            display: block;
-            font-size: 0.95rem;
-            margin-bottom: 2px;
-        }
-
-        .status-dot {
-            height: 6px;
-            width: 6px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 5px;
         }
 
         .points-badge {
@@ -215,7 +193,6 @@ $result = $conn->query($query);
             align-items: center;
             gap: 8px;
             color: var(--gold);
-            font-family: 'Outfit', sans-serif;
             font-weight: 700;
         }
 
@@ -225,13 +202,11 @@ $result = $conn->query($query);
             font-size: 0.65rem;
             font-weight: 800;
             text-transform: uppercase;
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .role-admin {
             background: rgba(255, 46, 46, 0.1);
             color: var(--crimson);
-            border-color: rgba(255, 46, 46, 0.2);
         }
 
         .role-user {
@@ -270,7 +245,14 @@ $result = $conn->query($query);
         .btn-suspend:hover {
             border-color: var(--crimson);
             color: var(--crimson);
-            background: rgba(255, 46, 46, 0.05);
+        }
+
+        .status-dot {
+            height: 6px;
+            width: 6px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
         }
 
         .text-active {
@@ -283,7 +265,6 @@ $result = $conn->query($query);
 
         .text-inactive {
             color: var(--text-dim);
-            opacity: 0.6;
         }
     </style>
 </head>
@@ -298,9 +279,7 @@ $result = $conn->query($query);
             <li><a href="user.php" class="active"><i class="fas fa-users"></i> Users</a></li>
             <li><a href="manage_vouchers.php"><i class="fas fa-tags"></i> Vouchers</a></li>
         </ul>
-        <a href="../index.php" class="logout-link">
-            <i class="fas fa-power-off"></i> Logout
-        </a>
+        <a href="../index.php" class="logout-link"><i class="fas fa-power-off"></i> Logout</a>
     </aside>
 
     <main class="main-content">
@@ -324,21 +303,20 @@ $result = $conn->query($query);
                 </thead>
                 <tbody>
                     <?php while ($row = $result->fetch_assoc()):
-                        $status = $row['status'] ?? 'pending';
+                        $status = strtolower($row['status'] ?? 'pending');
                         $points = $row['points'] ?? 0;
-                        $statusClass = 'text-' . $status;
                         $dotColor = ($status == 'active') ? 'var(--success)' : (($status == 'pending') ? 'var(--warning)' : 'var(--text-dim)');
                         ?>
                         <tr>
                             <td>
                                 <div class="user-cell">
                                     <div class="avatar">
-                                        <?php echo strtoupper(substr($row['name'], 0, 1) . substr($row['lname'], 0, 1)); ?>
+                                        <?php echo strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1)); ?>
                                     </div>
                                     <div class="user-details">
-                                        <strong><?php echo htmlspecialchars($row['name'] . " " . $row['lname']); ?></strong>
+                                        <strong><?php echo htmlspecialchars($row['first_name'] . " " . $row['last_name']); ?></strong>
                                         <span style="font-size: 0.7rem; color: var(--text-dim);">ID:
-                                            #USR-0<?php echo $row['id']; ?></span>
+                                            #USR-<?php echo str_pad($row['user_id'], 4, '0', STR_PAD_LEFT); ?></span>
                                     </div>
                                 </div>
                             </td>
@@ -347,18 +325,17 @@ $result = $conn->query($query);
                             </td>
                             <td>
                                 <span
-                                    class="role-badge <?php echo ($row['role'] == 'admin') ? 'role-admin' : 'role-user'; ?>">
+                                    class="role-badge <?php echo (strtolower($row['role']) == 'admin') ? 'role-admin' : 'role-user'; ?>">
                                     <?php echo $row['role']; ?>
                                 </span>
                             </td>
                             <td>
                                 <div class="points-badge">
-                                    <i class="fas fa-coins"></i>
-                                    <?php echo number_format($points); ?>
+                                    <i class="fas fa-coins"></i> <?php echo number_format($points); ?>
                                 </div>
                             </td>
                             <td>
-                                <span class="<?php echo $statusClass; ?>"
+                                <span class="text-<?php echo $status; ?>"
                                     style="font-size: 0.8rem; font-weight: 600; text-transform: capitalize;">
                                     <span class="status-dot" style="background-color: <?php echo $dotColor; ?>"></span>
                                     <?php echo $status; ?>
@@ -366,12 +343,12 @@ $result = $conn->query($query);
                             </td>
                             <td style="text-align: right;">
                                 <?php if ($status !== 'active'): ?>
-                                    <a href="update_user_status.php?id=<?php echo $row['id']; ?>&status=active"
+                                    <a href="update_user_status.php?id=<?php echo $row['user_id']; ?>&status=active"
                                         class="btn-status btn-approve">
                                         <i class="fas fa-user-check"></i> Activate
                                     </a>
                                 <?php else: ?>
-                                    <a href="update_user_status.php?id=<?php echo $row['id']; ?>&status=inactive"
+                                    <a href="update_user_status.php?id=<?php echo $row['user_id']; ?>&status=inactive"
                                         class="btn-status btn-suspend"
                                         onclick="return confirm('Suspend access for this user?')">
                                         <i class="fas fa-user-slash"></i> Suspend

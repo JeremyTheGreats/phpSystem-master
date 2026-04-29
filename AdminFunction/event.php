@@ -2,13 +2,18 @@
 session_start();
 include '../db.php';
 
-// Admin Access Check
-if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'admin') {
-    header("Location: login.php");
+// 1. ADMIN ACCESS CHECK
+if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'Admin') {
+    header("Location: ../login.php");
     exit;
 }
 
-$query = "SELECT * FROM events ORDER BY event_date ASC";
+// 2. FETCH EVENTS (JOIN with venue table to get venue_name)
+// Based on image_b5699c.png, we use 'event' table
+$query = "SELECT e.*, v.venue_name 
+          FROM event e 
+          LEFT JOIN venue v ON e.venue_id = v.venue_id 
+          ORDER BY e.event_date ASC";
 $result = mysqli_query($conn, $query);
 ?>
 <!DOCTYPE html>
@@ -49,7 +54,7 @@ $result = mysqli_query($conn, $query);
             min-height: 100vh;
         }
 
-        /* --- UNIFIED SIDEBAR --- */
+        /* --- SIDEBAR --- */
         .sidebar {
             width: 280px;
             background: var(--sidebar-bg);
@@ -159,7 +164,7 @@ $result = mysqli_query($conn, $query);
         /* --- GRID & CARDS --- */
         .event-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 30px;
         }
 
@@ -180,10 +185,19 @@ $result = mysqli_query($conn, $query);
         }
 
         .poster-area {
-            height: 220px;
+            height: 400px;
+            /* Taller height for movie/concert posters */
             background-size: cover;
             background-position: center;
             position: relative;
+            background-color: #1a1a1a;
+            /* Fallback color */
+        }
+
+        .poster-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.8));
         }
 
         .status-badge {
@@ -197,17 +211,21 @@ $result = mysqli_query($conn, $query);
             text-transform: uppercase;
             backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 2;
         }
 
         .details-area {
             padding: 25px;
             flex-grow: 1;
+            position: relative;
+            z-index: 2;
         }
 
         .details-area h3 {
             font-family: 'Outfit';
             font-size: 1.4rem;
             margin-bottom: 8px;
+            color: #fff;
         }
 
         .info-tag {
@@ -222,6 +240,8 @@ $result = mysqli_query($conn, $query);
         .info-tag i {
             color: var(--crimson);
             font-size: 0.8rem;
+            width: 15px;
+            text-align: center;
         }
 
         .footer-row {
@@ -237,7 +257,7 @@ $result = mysqli_query($conn, $query);
             font-family: 'Outfit';
             font-size: 1.2rem;
             font-weight: 800;
-            color: var(--text-main);
+            color: var(--success);
         }
 
         .action-links {
@@ -277,9 +297,7 @@ $result = mysqli_query($conn, $query);
             <li><a href="user.php"><i class="fas fa-users"></i> Users</a></li>
             <li><a href="manage_vouchers.php"><i class="fas fa-tags"></i> Vouchers</a></li>
         </ul>
-        <a href="../index.php" class="logout-link">
-            <i class="fas fa-power-off"></i> Logout
-        </a>
+        <a href="../logout.php" class="logout-link"><i class="fas fa-power-off"></i> Logout</a>
     </aside>
 
     <main class="main-content">
@@ -288,20 +306,28 @@ $result = mysqli_query($conn, $query);
                 <h1>Event Console</h1>
                 <p style="color: var(--text-dim);">Live stage management and booking availability.</p>
             </div>
-            <a href="createevent.php" class="create-btn">
-                <i class="fas fa-plus"></i> NEW EVENT
-            </a>
+            <div style="display: flex; gap: 15px;">
+                <a href="venue.php" class="create-btn"
+                    style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);">
+                    <i class="fas fa-map-location-dot"></i> ADD VENUE
+                </a>
+                <a href="createevent.php" class="create-btn">
+                    <i class="fas fa-plus"></i> NEW EVENT
+                </a>
+            </div>
         </header>
 
         <section class="event-grid">
-            <?php if (mysqli_num_rows($result) > 0): ?>
+            <?php if ($result && mysqli_num_rows($result) > 0): ?>
                 <?php while ($row = mysqli_fetch_assoc($result)):
                     $isActive = (strtolower($row['status']) == 'active');
                     $badgeStyle = $isActive ? 'background: rgba(0, 255, 163, 0.15); color: #00ffa3;' : 'background: rgba(255, 46, 46, 0.15); color: var(--crimson);';
+                    $current_id = $row['event_id']; // Matches image_b5699c.png
+                    $poster_path = htmlspecialchars($row['poster']);
                     ?>
                     <div class="event-card">
-                        <div class="poster-area"
-                            style="background-image: url('../<?php echo htmlspecialchars($row['poster']); ?>');">
+                        <div class="poster-area" style="background-image: url('../<?php echo $poster_path; ?>');">
+                            <div class="poster-overlay"></div>
                             <div class="status-badge" style="<?php echo $badgeStyle; ?>">
                                 <i class="fas fa-circle"
                                     style="font-size: 0.4rem; margin-right: 5px; vertical-align: middle;"></i>
@@ -313,19 +339,27 @@ $result = mysqli_query($conn, $query);
                             <h3><?php echo htmlspecialchars($row['artist']); ?></h3>
                             <div class="info-tag"><i class="fas fa-music"></i> <?php echo htmlspecialchars($row['title']); ?>
                             </div>
-                            <div class="info-tag"><i class="fas fa-location-dot"></i>
-                                <?php echo htmlspecialchars($row['venue']); ?></div>
-                            <div class="info-tag"><i class="fas fa-calendar-day"></i>
-                                <?php echo date('M d, Y', strtotime($row['event_date'])); ?></div>
+
+                            <!-- Fixed Info Layout -->
+                            <div class="info-group">
+                                <div class="info-tag"><i class="fas fa-location-dot"></i>
+                                    <?php echo htmlspecialchars($row['venue_name'] ?? 'No Venue Assigned'); ?></div>
+                                <div class="info-tag"><i class="fas fa-calendar-day"></i>
+                                    <?php echo date('M d, Y', strtotime($row['event_date'])); ?></div>
+                                <div class="info-tag"><i class="fas fa-clock"></i>
+                                    <?php echo date('h:i A', strtotime($row['event_time'])); ?></div>
+                            </div>
 
                             <div class="footer-row">
-                                <div class="price-label">₱<?php echo number_format($row['price'], 0); ?></div>
+                                <div class="price-label">₱<?php echo number_format($row['price'], 2); ?></div>
                                 <div class="action-links">
-                                    <a href="editevent.php?id=<?php echo $row['id']; ?>" class="icon-btn" title="Edit Event"><i
-                                            class="fas fa-pen-to-square"></i></a>
-                                    <a href="delete_event.php?id=<?php echo $row['id']; ?>" class="icon-btn"
-                                        onclick="return confirm('Delete this event?')" title="Delete Event"><i
-                                            class="fas fa-trash-can"></i></a>
+                                    <a href="editevent.php?id=<?php echo $current_id; ?>" class="icon-btn" title="Edit Event">
+                                        <i class="fas fa-pen-to-square"></i>
+                                    </a>
+                                    <a href="delete_event.php?id=<?php echo $current_id; ?>" class="icon-btn"
+                                        onclick="return confirm('Delete this event?')" title="Delete Event">
+                                        <i class="fas fa-trash-can"></i>
+                                    </a>
                                 </div>
                             </div>
                         </div>

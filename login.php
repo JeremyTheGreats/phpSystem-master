@@ -2,9 +2,9 @@
 session_start();
 include "db.php";
 
-// 1. IMPROVED LOGOUT / SESSION CLEARING
-// If someone is already logged in but visits login.php, we wipe the slate clean.
-// This prevents "Ghost Sessions" where old account data stays in the browser.
+/** * 1. IMPROVED LOGOUT / SESSION CLEARING
+ * If someone visits login.php while already logged in, we reset the session.
+ */
 if (isset($_SESSION['email']) && !isset($_POST['login'])) {
     session_unset();
     session_destroy();
@@ -14,45 +14,52 @@ if (isset($_SESSION['email']) && !isset($_POST['login'])) {
 
 $error = "";
 
-// 2. SECURE LOGIN PROCESSING
+/**
+ * 2. SECURE LOGIN PROCESSING
+ */
 if (isset($_POST['login'])) {
     $email = trim($_POST['username']);
     $password = $_POST['password'];
 
     // Use Prepared Statements to prevent SQL Injection
-    $stmt = $conn->prepare("SELECT id, email, password, role, status FROM user WHERE email = ? LIMIT 1");
+    // Using user_id instead of id to match our new schema
+    $stmt = $conn->prepare("SELECT user_id, email, password, role, status FROM User WHERE email = ? LIMIT 1");
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $result = $stmt->get_result();
     $user = $result->fetch_assoc();
 
     if ($user && password_verify($password, $user['password'])) {
-        
+
         // Check account standing
         if ($user['status'] === 'pending') {
             $error = "Account pending admin approval.";
         } elseif ($user['status'] === 'inactive') {
             $error = "Account deactivated. Contact support.";
         } else {
-            // --- THE CRITICAL FIXES ---
-            
-            // A. Clear any old session data left in memory
-            session_unset(); 
-            
-            // B. Create a brand new Session ID. 
-            // This forces the browser to drop the old user's "identity" entirely.
-            session_regenerate_id(true); 
+            // Clear old session data and regenerate ID for security (Prevents Session Fixation)
+            session_unset();
+            session_regenerate_id(true);
 
-            // C. Map the NEW user's data to the session
-            $_SESSION['user_id'] = $user['id']; 
+            // Map user data to session variables
+            $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['email'] = $user['email'];
             $_SESSION['role'] = $user['role'];
 
-            // D. Route based on role
-            if ($user['role'] == 'admin') {
-                header("Location: AdminFunction/admindash.php");
-            } else {
-                header("Location: UserFunction/dash.php");
+            /**
+             * 3. ROLE-BASED REDIRECTION
+             * Organizers now have their own dedicated area.
+             */
+            switch ($user['role']) {
+                case 'Admin':
+                    header("Location: AdminFunction/admindash.php");
+                    break;
+                case 'Organizer':
+                    header("Location: OrganizerFunction/organizerdash.php");
+                    break;
+                default:
+                    header("Location: UserFunction/dash.php");
+                    break;
             }
             exit;
         }
@@ -107,7 +114,6 @@ if (isset($_POST['login'])) {
             overflow: hidden;
         }
 
-        /* Ambient Background */
         .page-background {
             position: fixed;
             top: 0;
@@ -132,11 +138,9 @@ if (isset($_POST['login'])) {
             opacity: 0.5;
         }
 
-        /* Login Card */
         .login-card {
             background: rgba(15, 15, 15, 0.6);
             backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px);
             padding: 60px 50px;
             border-radius: 32px;
             width: 95%;
@@ -160,11 +164,10 @@ if (isset($_POST['login'])) {
         }
 
         .login-card h2 {
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Outfit';
             font-size: 2.5rem;
             font-weight: 900;
             margin-bottom: 10px;
-            letter-spacing: -1px;
         }
 
         .login-card h2 span {
@@ -175,10 +178,8 @@ if (isset($_POST['login'])) {
             color: var(--text-dim);
             margin-bottom: 40px;
             font-size: 0.95rem;
-            font-weight: 400;
         }
 
-        /* Form Styling */
         .form-group {
             text-align: left;
             margin-bottom: 25px;
@@ -189,7 +190,6 @@ if (isset($_POST['login'])) {
             margin-bottom: 10px;
             font-size: 0.75rem;
             font-weight: 700;
-            color: #fff;
             text-transform: uppercase;
             letter-spacing: 1.5px;
         }
@@ -204,7 +204,6 @@ if (isset($_POST['login'])) {
             top: 50%;
             transform: translateY(-50%);
             color: #444;
-            transition: 0.3s;
         }
 
         input {
@@ -215,21 +214,18 @@ if (isset($_POST['login'])) {
             border-radius: 16px;
             color: white;
             outline: none;
-            font-size: 1rem;
-            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: 0.3s;
         }
 
         input:focus {
             border-color: var(--crimson);
             background: rgba(255, 255, 255, 0.07);
-            box-shadow: 0 0 20px rgba(255, 46, 46, 0.15);
         }
 
         input:focus+i {
             color: var(--crimson);
         }
 
-        /* Button Styling */
         .login-btn {
             width: 100%;
             padding: 20px;
@@ -237,19 +233,16 @@ if (isset($_POST['login'])) {
             border: none;
             border-radius: 16px;
             color: white;
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Outfit';
             font-size: 1rem;
             font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 2px;
             cursor: pointer;
             transition: 0.4s;
-            margin-top: 15px;
             box-shadow: 0 10px 30px var(--crimson-glow);
         }
 
         .login-btn:hover {
-            background: #ff4d4d;
             transform: translateY(-3px);
             box-shadow: 0 15px 40px rgba(255, 46, 46, 0.4);
         }
@@ -278,11 +271,6 @@ if (isset($_POST['login'])) {
             text-decoration: none;
             font-weight: 700;
             border-bottom: 1px solid var(--crimson);
-            transition: 0.3s;
-        }
-
-        .options a:hover {
-            color: var(--crimson);
         }
 
         .back-home {
@@ -293,12 +281,6 @@ if (isset($_POST['login'])) {
             color: var(--text-dim);
             text-decoration: none;
             font-size: 0.8rem;
-            font-weight: 600;
-            transition: 0.3s;
-        }
-
-        .back-home:hover {
-            color: #fff;
         }
     </style>
 </head>
@@ -321,7 +303,7 @@ if (isset($_POST['login'])) {
             <div class="form-group">
                 <label>Email Address</label>
                 <div class="input-wrapper">
-                    <input type="text" name="username" placeholder="Enter your email" required autocomplete="off">
+                    <input type="email" name="username" placeholder="Enter your email" required>
                     <i class="fas fa-envelope"></i>
                 </div>
             </div>

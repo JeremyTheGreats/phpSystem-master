@@ -2,14 +2,16 @@
 session_start();
 include '../db.php';
 
-// Check if admin is logged in (matching your dashboard logic)
-if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'admin') {
-    header("Location: login.php");
+// 1. ADMIN ACCESS CHECK
+// Ensures only logged-in Admins can see this page
+if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'Admin') {
+    header("Location: ../login.php");
     exit;
 }
 
-// Fetch all current voucher offers
-$query = "SELECT * FROM coupon_offers ORDER BY id DESC";
+// 2. FETCH VOUCHERS 
+// Using your confirmed working query with 'coupon_id'
+$query = "SELECT * FROM rewards_coupon ORDER BY coupon_id DESC";
 $result = $conn->query($query);
 ?>
 
@@ -20,6 +22,8 @@ $result = $conn->query($query);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voucher Management | CrimsonGate</title>
+    
+    <!-- External Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Outfit:wght@700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -197,7 +201,7 @@ $result = $conn->query($query);
             border-color: var(--crimson);
         }
 
-        /* Modal Styling */
+        /* --- MODAL --- */
         .modal {
             display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
             background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index: 1000;
@@ -209,12 +213,19 @@ $result = $conn->query($query);
         .modal-content input, .modal-content textarea {
             width: 100%; padding: 12px; margin: 10px 0; background: #151515; 
             border: 1px solid var(--glass-border); color: white; border-radius: 8px;
+            font-family: inherit;
+        }
+
+        .alert {
+            padding: 15px; background: rgba(0, 255, 163, 0.1); color: var(--success);
+            border: 1px solid var(--success); border-radius: 12px; margin-bottom: 20px;
         }
     </style>
 </head>
 
 <body>
 
+    <!-- SIDEBAR -->
     <aside class="sidebar">
         <div class="logo">CRIMSON<span>ADMIN</span></div>
         <ul class="nav-links">
@@ -227,7 +238,13 @@ $result = $conn->query($query);
         <a href="../index.php" class="logout-link"><i class="fas fa-power-off"></i> Logout</a>
     </aside>
 
+    <!-- MAIN -->
     <main class="main-content">
+        <!-- Success Alert -->
+        <?php if(isset($_GET['success'])): ?>
+            <div class="alert"><i class="fas fa-check-circle"></i> Voucher offer created successfully!</div>
+        <?php endif; ?>
+
         <section class="header-section">
             <div>
                 <h1>Voucher Management</h1>
@@ -238,6 +255,7 @@ $result = $conn->query($query);
             </button>
         </section>
 
+        <!-- DATA TABLE -->
         <div class="table-panel">
             <table>
                 <thead>
@@ -251,28 +269,33 @@ $result = $conn->query($query);
                     </tr>
                 </thead>
                 <tbody>
-                    <?php while ($row = $result->fetch_assoc()): ?>
-                        <tr>
-                            <td><div style="font-weight: 700;"><?php echo $row['coupon_name']; ?></div></td>
-                            <td style="color: var(--text-dim);"><?php echo $row['description']; ?></td>
-                            <td style="font-weight: 700;">₱<?php echo number_format($row['point_cost']); ?> pts</td>
-                            <td><?php echo $row['max_uses']; ?>x</td>
-                            <td><span class="tier-badge"><?php echo $row['tier_label']; ?></span></td>
-                            <td>
-                                <a href="#" class="icon-btn"><i class="fas fa-edit"></i></a>
-                                <a href="delete_coupon.php?id=<?php echo $row['id']; ?>" class="icon-btn" 
-                                   onclick="return confirm('Delete this voucher offer?')">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            </td>
-                        </tr>
-                    <?php endwhile; ?>
+                    <?php if ($result && $result->num_rows > 0): ?>
+                        <?php while ($row = $result->fetch_assoc()): ?>
+                            <tr>
+                                <td><div style="font-weight: 700; color: var(--crimson);"><?php echo htmlspecialchars($row['coupon_name']); ?></div></td>
+                                <td style="color: var(--text-dim);"><?php echo htmlspecialchars($row['description']); ?></td>
+                                <td style="font-weight: 700;"><?php echo number_format($row['point_cost']); ?> pts</td>
+                                <td><?php echo htmlspecialchars($row['max_uses']); ?>x</td>
+                                <td><span class="tier-badge"><?php echo htmlspecialchars($row['tier_label'] ?? 'General'); ?></span></td>
+                                <td>
+                                    <!-- Using coupon_id for deletion to match your DB -->
+                                    <a href="delete_coupon.php?id=<?php echo $row['coupon_id']; ?>" class="icon-btn" 
+                                       onclick="return confirm('Delete this voucher offer?')">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding: 50px;">No vouchers found in rewards_coupon.</td></tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </main>
 
-    <div id="addModal" class="modal">
+    <!-- CREATE MODAL -->
+    <div id="addModal" class="modal" onclick="if(event.target == this) this.style.display='none'">
         <div class="modal-content">
             <h2 style="font-family: 'Outfit'; margin-bottom: 20px;">New Voucher Offer</h2>
             <form action="Coupon.php" method="POST">

@@ -7,26 +7,25 @@ header("Expires: 0");
 session_start();
 include '../db.php';
 
-// 2. ADMIN ACCESS CHECK
-if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'admin') {
-    header("Location: login.php");
+// 2. ADMIN ACCESS CHECK (Note: Role check is case-sensitive 'Admin')
+if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'Admin') {
+    header("Location: ../login.php");
     exit;
 }
 
-// 3. FETCH DATA
+// 3. FETCH DATA (Removed seat_number)
 $sql = "SELECT 
-            b.id AS ref_id, 
-            CONCAT(u.name, ' ', u.lname) AS customer_name, 
+            b.booking_id AS ref_id, 
+            CONCAT(u.first_name, ' ', u.last_name) AS customer_name, 
             e.title AS event_name, 
-            b.seat_number, 
-            b.price, 
+            b.total_price, 
             b.payment_method, 
             b.status,
             b.booking_date 
-        FROM bookings b
-        LEFT JOIN user u ON b.user_id = u.id
-        LEFT JOIN events e ON b.event_id = e.id
-        ORDER BY b.id DESC";
+        FROM booking b
+        LEFT JOIN user u ON b.user_id = u.user_id
+        LEFT JOIN event e ON b.event_id = e.event_id
+        ORDER BY b.booking_id DESC";
 
 $result = mysqli_query($conn, $sql);
 ?>

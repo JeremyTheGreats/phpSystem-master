@@ -3,26 +3,37 @@ include "db.php";
 $error = "";
 
 if (isset($_POST['register'])) {
-    $name = mysqli_real_escape_string($conn, $_POST['name']);
-    $lname = mysqli_real_escape_string($conn, $_POST['lname']);
-    $email = mysqli_real_escape_string($conn, $_POST['email']);
-    $pass = $_POST['password'];
+    // 1. COLLECT & SANITIZE
+    $first_name = trim($_POST['name']);
+    $last_name = trim($_POST['lname']);
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
 
-    $hash = password_hash($pass, PASSWORD_DEFAULT);
-    $check = mysqli_query($conn, "SELECT * FROM user WHERE email = '$email'");
+    // 2. CHECK IF EMAIL EXISTS (Using Prepared Statements)
+    $stmt = $conn->prepare("SELECT email FROM User WHERE email = ? LIMIT 1");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-    if (mysqli_num_rows($check) > 0) {
-        $error = "Email is already registered!";
+    if ($result->num_rows > 0) {
+        $error = "This email is already registered!";
     } else {
-        // Updated to include 'pending' status by default
-        $insert = mysqli_query($conn, "INSERT INTO user (name, lname, email, password, role, status) VALUES ('$name', '$lname', '$email', '$hash', 'user', 'pending')");
-        if ($insert) {
+        // 3. HASH PASSWORD & INSERT
+        // Default role is 'Customer', status is 'pending' for admin approval
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+
+        $insert_stmt = $conn->prepare("INSERT INTO User (first_name, last_name, email, password, role, status) VALUES (?, ?, ?, ?, 'Customer', 'pending')");
+        $insert_stmt->bind_param("ssss", $first_name, $last_name, $email, $hash);
+
+        if ($insert_stmt->execute()) {
             header("Location: login.php?registered=1");
             exit;
         } else {
-            $error = "Registration Failed! Please try again.";
+            $error = "Registration failed! Please contact support.";
         }
+        $insert_stmt->close();
     }
+    $stmt->close();
 }
 ?>
 <!DOCTYPE html>
@@ -31,7 +42,7 @@ if (isset($_POST['register'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Join CrimsonGate | Experience the Sound</title>
+    <title>Join CrimsonGate | Premier Access</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@700;900&display=swap"
         rel="stylesheet">
@@ -62,10 +73,8 @@ if (isset($_POST['register'])) {
             justify-content: center;
             align-items: center;
             padding: 40px 20px;
-            overflow-x: hidden;
         }
 
-        /* Ambient Background Layers */
         .page-background {
             position: fixed;
             top: 0;
@@ -90,11 +99,9 @@ if (isset($_POST['register'])) {
             opacity: 0.4;
         }
 
-        /* Registration Card */
         .register-card {
             background: rgba(15, 15, 15, 0.6);
             backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px);
             padding: 50px;
             border-radius: 32px;
             width: 100%;
@@ -122,10 +129,9 @@ if (isset($_POST['register'])) {
         }
 
         .header-area h2 {
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Outfit';
             font-size: 2.5rem;
             font-weight: 900;
-            margin-bottom: 8px;
             letter-spacing: -1px;
         }
 
@@ -138,7 +144,6 @@ if (isset($_POST['register'])) {
             font-size: 0.95rem;
         }
 
-        /* Form Layout */
         .form-row {
             display: flex;
             gap: 20px;
@@ -154,7 +159,6 @@ if (isset($_POST['register'])) {
             margin-bottom: 10px;
             font-size: 0.7rem;
             font-weight: 700;
-            color: #fff;
             text-transform: uppercase;
             letter-spacing: 1.5px;
         }
@@ -169,7 +173,6 @@ if (isset($_POST['register'])) {
             top: 50%;
             transform: translateY(-50%);
             color: #444;
-            transition: 0.3s;
         }
 
         input {
@@ -180,21 +183,18 @@ if (isset($_POST['register'])) {
             border-radius: 14px;
             color: white;
             outline: none;
-            font-size: 0.95rem;
             transition: 0.3s;
         }
 
         input:focus {
             border-color: var(--crimson);
             background: rgba(255, 255, 255, 0.08);
-            box-shadow: 0 0 20px rgba(255, 46, 46, 0.15);
         }
 
         input:focus+i {
             color: var(--crimson);
         }
 
-        /* Custom Checkbox */
         .checkbox-group {
             display: flex;
             align-items: center;
@@ -206,9 +206,7 @@ if (isset($_POST['register'])) {
 
         .checkbox-group input {
             width: auto;
-            padding: 0;
             accent-color: var(--crimson);
-            cursor: pointer;
         }
 
         .register-btn {
@@ -218,18 +216,16 @@ if (isset($_POST['register'])) {
             border: none;
             border-radius: 14px;
             color: white;
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Outfit';
             font-size: 1rem;
             font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 2px;
             cursor: pointer;
             transition: 0.4s;
             box-shadow: 0 10px 30px var(--crimson-glow);
         }
 
         .register-btn:hover {
-            background: #ff4d4d;
             transform: translateY(-3px);
             box-shadow: 0 15px 40px rgba(255, 46, 46, 0.4);
         }
@@ -259,10 +255,6 @@ if (isset($_POST['register'])) {
             border-bottom: 1px solid var(--crimson);
         }
 
-        .footer-links a:hover {
-            color: var(--crimson);
-        }
-
         .back-link {
             display: block;
             text-align: center;
@@ -286,7 +278,6 @@ if (isset($_POST['register'])) {
 </head>
 
 <body>
-
     <div class="page-background"></div>
     <div class="ambient-glow"></div>
 
@@ -302,7 +293,7 @@ if (isset($_POST['register'])) {
             </div>
         <?php endif; ?>
 
-        <form action="#" method="POST">
+        <form action="" method="POST">
             <div class="form-row">
                 <div class="form-group">
                     <label for="fname">First Name</label>
@@ -350,7 +341,6 @@ if (isset($_POST['register'])) {
 
         <a href="index.php" class="back-link"><i class="fas fa-arrow-left-long"></i> Return to Site</a>
     </div>
-
 </body>
 
 </html>

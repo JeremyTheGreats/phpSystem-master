@@ -2,12 +2,26 @@
 session_start();
 include "db.php";
 
-// Reset session for landing page visitors
-session_unset();
-session_destroy();
+/** * NORMALIZED QUERY:
+ * 1. JOINS Event with Venue to get the specific location name.
+ * 2. JOINS Event with Tickets to find the lowest available price (Starting at ₱X).
+ */
+$event_query = "
+    SELECT 
+        e.event_id, 
+        e.title, 
+        e.poster, 
+        e.event_date, 
+        v.venue_name, 
+        MIN(t.price) as min_price 
+    FROM Event e
+    INNER JOIN Venue v ON e.venue_id = v.venue_id
+    INNER JOIN Tickets t ON e.event_id = t.event_id
+    WHERE e.status = 'active' 
+    GROUP BY e.event_id
+    ORDER BY e.event_date ASC 
+    LIMIT 6";
 
-// Fetch active events for the display grid
-$event_query = "SELECT * FROM events WHERE status = 'active' ORDER BY event_date ASC LIMIT 6";
 $event_result = $conn->query($event_query);
 ?>
 <!DOCTYPE html>
@@ -17,7 +31,9 @@ $event_result = $conn->query($event_query);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CrimsonGate | Premier Event Access</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@700;900&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@700;900&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
@@ -199,29 +215,6 @@ $event_result = $conn->query($event_query);
             background: var(--crimson);
             color: #fff;
         }
-
-        /* --- FOOTER & CONTACT --- */
-        .f-link {
-            color: var(--text-dim);
-            text-decoration: none;
-            transition: 0.3s;
-        }
-
-        .f-link:hover {
-            color: var(--crimson);
-            padding-left: 5px;
-        }
-
-        .social-icon {
-            color: var(--text-dim);
-            font-size: 1.3rem;
-            transition: 0.3s;
-        }
-
-        .social-icon:hover {
-            color: #fff;
-            transform: translateY(-5px);
-        }
     </style>
 </head>
 
@@ -238,84 +231,101 @@ $event_result = $conn->query($event_query);
     </header>
 
     <section class="hero">
-        <span style="color:var(--crimson); letter-spacing:5px; font-weight:800; font-size:0.7rem; text-transform:uppercase;">The Philippines' Elite Venue</span>
+        <span
+            style="color:var(--crimson); letter-spacing:5px; font-weight:800; font-size:0.7rem; text-transform:uppercase;">The
+            Philippines' Elite Venue</span>
         <h1 style="font-family:'Outfit'; font-size: clamp(3rem, 8vw, 6rem); margin: 20px 0;">Life is <i>Live.</i></h1>
-        <p style="max-width:500px; color:var(--text-dim); margin-bottom:40px;">Your portal to exclusive concerts, theater, and premium sporting events.</p>
+        <p style="max-width:500px; color:var(--text-dim); margin-bottom:40px;">Your portal to exclusive concerts,
+            theater, and premium sporting events.</p>
         <a href="#events" class="btn-nav" style="padding: 16px 45px;">Explore Lineup</a>
     </section>
 
     <section id="events">
-        <h2 style="text-align:center; font-family:'Outfit'; font-size:2.5rem; margin-bottom:30px;">Featured <span style="color:var(--crimson);">Performances</span></h2>
+        <h2 style="text-align:center; font-family:'Outfit'; font-size:2.5rem; margin-bottom:30px;">Featured <span
+                style="color:var(--crimson);">Performances</span></h2>
         <div class="grid">
             <?php if ($event_result && $event_result->num_rows > 0): ?>
                 <?php while ($event = $event_result->fetch_assoc()): ?>
                     <div class="card">
                         <div class="card-img-container">
-                            <img src="<?php echo $event['poster']; ?>" class="card-img" alt="Poster">
+                            <img src="<?php echo htmlspecialchars($event['poster']); ?>" class="card-img" alt="Poster">
                         </div>
                         <div style="padding: 25px;">
-                            <span style="color:var(--crimson); font-weight:800; font-size:0.7rem;"><?php echo date("M d, Y", strtotime($event['event_date'])); ?></span>
-                            <h3 style="font-family:'Outfit'; margin: 10px 0;"><?php echo $event['title']; ?></h3>
-                            <p style="color:var(--text-dim); font-size:0.8rem;"><i class="fas fa-map-marker-alt"></i> <?php echo $event['venue']; ?></p>
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; padding-top:15px; border-top:1px solid var(--glass-border);">
-                                <strong>₱<?php echo number_format($event['price'], 0); ?></strong>
+                            <span style="color:var(--crimson); font-weight:800; font-size:0.7rem;">
+                                <?php echo date("M d, Y", strtotime($event['event_date'])); ?>
+                            </span>
+                            <h3 style="font-family:'Outfit'; margin: 10px 0;"><?php echo htmlspecialchars($event['title']); ?>
+                            </h3>
+                            <p style="color:var(--text-dim); font-size:0.8rem;">
+                                <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($event['venue_name']); ?>
+                            </p>
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; padding-top:15px; border-top:1px solid var(--glass-border);">
+                                <div>
+                                    <span
+                                        style="font-size: 0.65rem; color: var(--text-dim); display: block; text-transform: uppercase;">Starting
+                                        at</span>
+                                    <strong>₱<?php echo number_format($event['min_price'], 0); ?></strong>
+                                </div>
                                 <a href="login.php" class="btn-ticket">Secure Entry</a>
                             </div>
                         </div>
                     </div>
                 <?php endwhile; ?>
+            <?php else: ?>
+                <p style="text-align: center; grid-column: 1/-1; color: var(--text-dim); padding: 50px;">No live events
+                    currently available.</p>
             <?php endif; ?>
         </div>
     </section>
 
     <footer style="background: rgba(5,5,5,0.9); padding: 80px 5% 40px; border-top: 1px solid var(--glass-border);">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 40px; max-width: 1300px; margin: 0 auto 50px;">
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 40px; max-width: 1300px; margin: 0 auto 50px;">
 
             <div class="f-col">
                 <div class="logo" style="color:var(--crimson); margin-bottom:20px;">CRIMSONGATE</div>
-                <p style="color:var(--text-dim); font-size:0.85rem;">Redefining event access. Built for the ultimate fan experience.</p>
+                <p style="color:var(--text-dim); font-size:0.85rem;">Redefining event access. Built for the ultimate fan
+                    experience.</p>
             </div>
 
             <div class="f-col">
                 <h4 style="color:#fff; font-size:0.8rem; margin-bottom:20px; text-transform:uppercase;">Platform</h4>
                 <ul style="list-style:none;">
-                    <li style="margin-bottom:10px;"><a href="login.php" class="f-link">User Login</a></li>
-                    <li style="margin-bottom:10px;"><a href="register.php" class="f-link">Register</a></li>
-                    <li style="margin-bottom:10px;"><a href="#events" class="f-link">Live Events</a></li>
+                    <li style="margin-bottom:10px;"><a href="login.php"
+                            style="color: var(--text-dim); text-decoration: none;">User Login</a></li>
+                    <li style="margin-bottom:10px;"><a href="register.php"
+                            style="color: var(--text-dim); text-decoration: none;">Register</a></li>
+                    <li style="margin-bottom:10px;"><a href="#events"
+                            style="color: var(--text-dim); text-decoration: none;">Live Events</a></li>
                 </ul>
             </div>
 
             <div class="f-col">
                 <h4 style="color:#fff; font-size:0.8rem; margin-bottom:20px; text-transform:uppercase;">Questions?</h4>
-                <ul style="list-style:none;">
-                    <li style="margin-bottom:12px; color:var(--text-dim); font-size:0.85rem;">
-                        <i class="fas fa-envelope" style="color:var(--crimson); margin-right:10px;"></i>
-                        <a href="mailto:support@crimsongate.ph" class="f-link">support@crimsongate.ph</a>
-                    </li>
-                    <li style="margin-bottom:12px; color:var(--text-dim); font-size:0.85rem;">
-                        <i class="fas fa-phone" style="color:var(--crimson); margin-right:10px;"></i>
-                        <span>+63 (02) 8888-GATE</span>
-                    </li>
-                    <li style="margin-bottom:12px; color:var(--text-dim); font-size:0.85rem;">
-                        <i class="fas fa-headset" style="color:var(--crimson); margin-right:10px;"></i>
-                        <a href="#" class="f-link">24/7 Help Center</a>
-                    </li>
+                <ul style="list-style:none; color: var(--text-dim); font-size: 0.85rem;">
+                    <li style="margin-bottom:12px;"><i class="fas fa-envelope"
+                            style="color:var(--crimson); margin-right:10px;"></i> support@crimsongate.ph</li>
+                    <li style="margin-bottom:12px;"><i class="fas fa-phone"
+                            style="color:var(--crimson); margin-right:10px;"></i> +63 (02) 8888-GATE</li>
                 </ul>
             </div>
 
             <div class="f-col">
                 <h4 style="color:#fff; font-size:0.8rem; margin-bottom:20px; text-transform:uppercase;">Follow Us</h4>
                 <div style="display:flex; gap:15px;">
-                    <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
-                    <a href="#" class="social-icon"><i class="fab fa-facebook"></i></a>
-                    <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                    <a href="#" style="color: var(--text-dim); font-size: 1.3rem;"><i class="fab fa-instagram"></i></a>
+                    <a href="#" style="color: var(--text-dim); font-size: 1.3rem;"><i class="fab fa-facebook"></i></a>
+                    <a href="#" style="color: var(--text-dim); font-size: 1.3rem;"><i class="fab fa-twitter"></i></a>
                 </div>
             </div>
         </div>
 
-        <div style="max-width: 1300px; margin: 0 auto; border-top: 1px solid var(--glass-border); padding-top: 25px; display:flex; justify-content:space-between; font-size:0.7rem; color:#555;">
+        <div
+            style="max-width: 1300px; margin: 0 auto; border-top: 1px solid var(--glass-border); padding-top: 25px; display:flex; justify-content:space-between; font-size:0.7rem; color:#555;">
             <p>&copy; 2026 CrimsonGate PH. All Rights Reserved.</p>
-            <p><i class="fas fa-circle" style="color:#00ff78; font-size:6px; margin-right:5px;"></i> Systems Operational</p>
+            <p><i class="fas fa-circle" style="color:#00ff78; font-size:6px; margin-right:5px;"></i> Systems Operational
+            </p>
         </div>
     </footer>
 </body>

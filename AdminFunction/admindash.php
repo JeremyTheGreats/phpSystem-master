@@ -2,30 +2,34 @@
 session_start();
 include '../db.php';
 
-// Check if admin is logged in
-if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'admin') {
-    header("Location: login.php");
+// SECURITY: Admin only
+if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'Admin') {
+    header("Location: ../login.php");
     exit;
 }
 
-// FETCH LIVE STATS
-$rev_query = mysqli_query($conn, "SELECT SUM(price) as total FROM bookings WHERE status = 'confirmed'");
-$rev_data = mysqli_fetch_assoc($rev_query);
-$total_revenue = $rev_data['total'] ?? 0;
+// 1. OVERALL SALES
+$sales_query = mysqli_query($conn, "SELECT SUM(total_price) as total_sales FROM booking WHERE status = 'confirmed'");
+$sales_data = mysqli_fetch_assoc($sales_query);
+$overall_sales = $sales_data['total_sales'] ?? 0;
 
-$ticket_query = mysqli_query($conn, "SELECT COUNT(*) as ticket_count FROM bookings");
-$ticket_data = mysqli_fetch_assoc($ticket_query);
-$tickets_sold = $ticket_data['ticket_count'] ?? 0;
+// 2. TICKETS SOLD
+$tickets_query = mysqli_query($conn, "SELECT COUNT(*) as total_tickets FROM booking");
+$tickets_data = mysqli_fetch_assoc($tickets_query);
+$tickets_sold = $tickets_data['total_tickets'] ?? 0;
 
-$active_query = mysqli_query($conn, "SELECT COUNT(*) as active_count FROM events WHERE status = 'active'");
-$active_data = mysqli_fetch_assoc($active_query);
-$active_events = $active_data['active_count'] ?? 0;
+// 3. WEBSITE USERS
+$user_query = mysqli_query($conn, "SELECT COUNT(*) as total_users FROM user");
+$user_data = mysqli_fetch_assoc($user_query);
+$total_users = $user_data['total_users'] ?? 0;
 
-$user_count_query = mysqli_query($conn, "SELECT COUNT(*) as u_count FROM user WHERE role = 'user'");
-$user_data = mysqli_fetch_assoc($user_count_query);
-$total_users = $user_data['u_count'] ?? 0;
-
-$events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date ASC");
+// 4. UPDATED QUERY: Join event table with venue table to get the name
+// Based on image_b5699c.png, we use 'event' (singular)
+$events_sql = "SELECT e.*, v.venue_name 
+               FROM event e 
+               LEFT JOIN venue v ON e.venue_id = v.venue_id 
+               ORDER BY e.event_date ASC";
+$events_result = mysqli_query($conn, $events_sql);
 ?>
 
 <!DOCTYPE html>
@@ -66,7 +70,6 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
             min-height: 100vh;
         }
 
-        /* --- UNIFIED SIDEBAR (From Bookings) --- */
         .sidebar {
             width: 280px;
             background: var(--sidebar-bg);
@@ -108,7 +111,7 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
             border-radius: 12px;
             font-size: 0.9rem;
             font-weight: 600;
-            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: 0.3s;
         }
 
         .nav-links a:hover,
@@ -121,18 +124,6 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
             border-left: 3px solid var(--crimson);
         }
 
-        .logout-link {
-            margin-top: auto;
-            color: var(--crimson);
-            text-decoration: none;
-            padding: 14px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            font-weight: 600;
-        }
-
-        /* --- MAIN CONTENT --- */
         .main-content {
             flex: 1;
             margin-left: 280px;
@@ -140,9 +131,6 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
         }
 
         .header-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
             margin-bottom: 3rem;
         }
 
@@ -152,31 +140,9 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
             font-weight: 900;
         }
 
-        .btn-primary {
-            background: var(--crimson);
-            color: #fff;
-            padding: 14px 28px;
-            border-radius: 12px;
-            text-decoration: none;
-            font-weight: 800;
-            font-family: 'Outfit';
-            font-size: 0.8rem;
-            letter-spacing: 1px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: 0.3s;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(255, 46, 46, 0.4);
-        }
-
-        /* --- STATS CARDS --- */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 20px;
             margin-bottom: 3rem;
         }
@@ -184,25 +150,38 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
         .stat-card {
             background: var(--panel);
             border: 1px solid var(--glass-border);
-            padding: 25px;
+            padding: 30px;
             border-radius: 20px;
+            transition: 0.3s;
+        }
+
+        .stat-card:hover {
+            border-color: var(--crimson);
+            transform: translateY(-5px);
         }
 
         .stat-card h4 {
             color: var(--text-dim);
-            font-size: 0.65rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 1.5px;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
         .stat-card .value {
             font-family: 'Outfit', sans-serif;
-            font-size: 1.8rem;
+            font-size: 2.2rem;
             font-weight: 800;
+            color: #fff;
         }
 
-        /* --- TABLE PANEL --- */
+        .stat-card i {
+            color: var(--crimson);
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
         .table-panel {
             background: var(--panel);
             border: 1px solid var(--glass-border);
@@ -226,7 +205,6 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
             text-align: left;
             font-size: 0.7rem;
             text-transform: uppercase;
-            letter-spacing: 1px;
             color: var(--text-dim);
             border-bottom: 1px solid var(--glass-border);
         }
@@ -250,29 +228,9 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
             color: var(--success);
         }
 
-        .status-soldout {
+        .status-inactive {
             background: rgba(255, 46, 46, 0.1);
             color: var(--crimson);
-        }
-
-        .icon-btn {
-            width: 36px;
-            height: 36px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--glass-border);
-            color: var(--text-dim);
-            text-decoration: none;
-            transition: 0.2s;
-        }
-
-        .icon-btn:hover {
-            background: var(--crimson);
-            color: white;
-            border-color: var(--crimson);
         }
     </style>
 </head>
@@ -281,7 +239,6 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
 
     <aside class="sidebar">
         <div class="logo">CRIMSON<span>ADMIN</span></div>
-
         <ul class="nav-links">
             <li><a href="admindash.php" class="active"><i class="fas fa-chart-pie"></i> Overview</a></li>
             <li><a href="event.php"><i class="fas fa-calendar-check"></i> Events</a></li>
@@ -289,57 +246,51 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
             <li><a href="user.php"><i class="fas fa-users"></i> Users</a></li>
             <li><a href="manage_vouchers.php"><i class="fas fa-tags"></i> Vouchers</a></li>
         </ul>
-
-        <a href="../index.php" class="logout-link">
-            <i class="fas fa-power-off"></i> Logout
-        </a>
+        <a href="../logout.php"
+            style="color:var(--crimson); text-decoration:none; padding: 20px; font-weight: bold; margin-top: auto;"><i
+                class="fas fa-power-off"></i> Logout</a>
     </aside>
 
     <main class="main-content">
         <section class="header-section">
-            <div>
-                <h1>System Overview</h1>
-                <p style="color: var(--text-dim);">Live analytical data from your event gateways.</p>
-            </div>
-
+            <h1>System Analytics</h1>
+            <p style="color: var(--text-dim);">Real-time performance tracking for CrimsonGate.</p>
         </section>
 
         <div class="stats-grid">
             <div class="stat-card">
-                <h4>Total Revenue</h4>
-                <div class="value">₱<?php echo number_format($total_revenue, 0); ?></div>
+                <i class="fas fa-coins"></i>
+                <h4>Overall Sales</h4>
+                <div class="value">₱<?php echo number_format($overall_sales, 2); ?></div>
             </div>
             <div class="stat-card">
-                <h4>Tickets Issued</h4>
+                <i class="fas fa-ticket-alt"></i>
+                <h4>Tickets Sold</h4>
                 <div class="value"><?php echo number_format($tickets_sold); ?></div>
             </div>
             <div class="stat-card">
-                <h4>Active Gates</h4>
-                <div class="value"><?php echo $active_events; ?></div>
-            </div>
-            <div class="stat-card">
-                <h4>Platform Users</h4>
-                <div class="value"><?php echo $total_users; ?></div>
+                <i class="fas fa-user-friends"></i>
+                <h4>Website Users</h4>
+                <div class="value"><?php echo number_format($total_users); ?></div>
             </div>
         </div>
 
         <div class="table-panel">
             <div class="table-header">
-                <h3 style="font-family: 'Outfit'; font-size: 1.1rem;">Live Event Schedule</h3>
+                <h3 style="font-family: 'Outfit'; font-size: 1.1rem;">Live Event Status</h3>
             </div>
             <table>
                 <thead>
                     <tr>
-                        <th>Performance</th>
+                        <th>Event Detail</th>
                         <th>Venue</th>
-                        <th>Schedule</th>
+                        <th>Date & Time</th>
                         <th>Status</th>
-                        <th>Price</th>
-                        <th>Tools</th>
+                        <th>Seating Capacity</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (mysqli_num_rows($events_result) > 0): ?>
+                    <?php if ($events_result && mysqli_num_rows($events_result) > 0): ?>
                         <?php while ($row = mysqli_fetch_assoc($events_result)): ?>
                             <tr>
                                 <td>
@@ -347,8 +298,8 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
                                     <div style="font-size: 0.75rem; color: var(--text-dim);">
                                         <?php echo htmlspecialchars($row['title']); ?></div>
                                 </td>
-                                <td><i class="fas fa-location-dot" style="color: var(--crimson); margin-right: 5px;"></i>
-                                    <?php echo htmlspecialchars($row['venue']); ?></td>
+                                <!-- Displaying venue_name from the JOIN -->
+                                <td><?php echo htmlspecialchars($row['venue_name'] ?? 'Unassigned'); ?></td>
                                 <td>
                                     <?php echo date('M d, Y', strtotime($row['event_date'])); ?><br>
                                     <span
@@ -356,27 +307,27 @@ $events_result = mysqli_query($conn, "SELECT * FROM events ORDER BY event_date A
                                 </td>
                                 <td>
                                     <span
-                                        class="status-pill <?php echo ($row['status'] == 'active') ? 'status-active' : 'status-soldout'; ?>">
+                                        class="status-pill <?php echo (strtolower($row['status']) == 'active') ? 'status-active' : 'status-inactive'; ?>">
                                         <?php echo strtoupper($row['status']); ?>
                                     </span>
                                 </td>
-                                <td style="font-weight: 700;">₱<?php echo number_format($row['price'], 2); ?></td>
-                                <td>
-                                    <a href="editevent.php?id=<?php echo $row['id']; ?>" class="icon-btn"><i
-                                            class="fas fa-edit"></i></a>
-                                    <a href="delete_event.php?id=<?php echo $row['id']; ?>" class="icon-btn"
-                                        onclick="return confirm('Archive this event?')"><i class="fas fa-trash"></i></a>
+                                <!-- Displaying capacity based on your table structure -->
+                                <td style="font-weight: 700; color: var(--text-dim);">
+                                    <?php echo ($row['total_rows'] * $row['cols_per_row']); ?> Max Seats
                                 </td>
                             </tr>
                         <?php endwhile; ?>
                     <?php else: ?>
-                        <tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 40px;">No events active.</td></tr>
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--text-dim); padding: 40px 0;">
+                                No events found.
+                            </td>
+                        </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </main>
-
 </body>
 
 </html>

@@ -2,21 +2,24 @@
 session_start();
 include '../db.php';
 
+// Check if Admin
+if (!isset($_SESSION['email']) || $_SESSION['role'] !== 'Admin') {
+    header("Location: ../login.php");
+    exit;
+}
+
 if (isset($_GET['id'])) {
     $id = intval($_GET['id']);
 
-    // Prepare delete statement
-    $stmt = $conn->prepare("DELETE FROM coupon_offers WHERE id = ?");
-    $stmt->bind_param("i", $id);
+    // Use the correct table name from your DB: rewards_coupon
+    $query = "DELETE FROM rewards_coupon WHERE coupon_id = $id";
 
-    if ($stmt->execute()) {
-        header("Location: manage_vouchers.php?msg=Offer+Deleted+Successfully");
+    if ($conn->query($query)) {
+        header("Location: manage_vouchers.php?deleted=1");
     } else {
-        header("Location: manage_vouchers.php?msg=Error+Deleting+Offer");
+        echo "Error deleting record: " . $conn->error;
     }
-    $stmt->close();
 } else {
     header("Location: manage_vouchers.php");
 }
-exit();
 ?>
